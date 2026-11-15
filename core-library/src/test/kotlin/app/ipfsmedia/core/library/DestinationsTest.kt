@@ -108,7 +108,7 @@ class DestinationsTest {
 
     // ── The placement table, row by row ─────────────────────────────────────────────────────
 
-    private val media = album.asPayload()
+    private val mediaPayload = album.asPayload()
     private val playlist = DragPayload.Playlist(7, "Night Drive", entryCount = 3)
     private val uploader = DragPayload.Uploader(OTHER, "moth.eth", followed = false)
     private val dao = DragPayload.DataDao(DAO_A, "Night Shift", pinned = false)
@@ -122,7 +122,7 @@ class DestinationsTest {
     @Test
     fun `a playlist in the sidebar takes media and merges playlists`() {
         val target = DropTarget.SidebarPlaylist(2, "Newest")
-        assertEquals(Destination.Playlist(2, "Newest"), accepted(media, target))
+        assertEquals(Destination.Playlist(2, "Newest"), accepted(mediaPayload, target))
         assertEquals(Destination.Playlist(2, "Newest"), accepted(playlist, target))
         assertTrue(ignored(uploader, target))
         assertTrue(ignored(dao, target))
@@ -132,7 +132,7 @@ class DestinationsTest {
 
     @Test
     fun `new playlist in the sidebar creates from media and duplicates a playlist`() {
-        assertEquals(Destination.NewPlaylist, accepted(media, DropTarget.SidebarNewPlaylist))
+        assertEquals(Destination.NewPlaylist, accepted(mediaPayload, DropTarget.SidebarNewPlaylist))
         assertEquals(Destination.NewPlaylist, accepted(playlist, DropTarget.SidebarNewPlaylist))
         assertTrue(ignored(uploader, DropTarget.SidebarNewPlaylist))
     }
@@ -140,51 +140,51 @@ class DestinationsTest {
     @Test
     fun `an open playlist page takes media at a position and nothing else`() {
         val target = DropTarget.PlaylistPage(2, index = 4)
-        assertEquals(Destination.PlaylistAt(2, 4), accepted(media, target))
+        assertEquals(Destination.PlaylistAt(2, 4), accepted(mediaPayload, target))
         assertTrue(ignored(playlist, target))
     }
 
     @Test
     fun `the queue button adds to the end`() {
-        assertEquals(Destination.AddToQueue, accepted(media, DropTarget.QueueButton))
+        assertEquals(Destination.AddToQueue, accepted(mediaPayload, DropTarget.QueueButton))
         assertEquals(Destination.AddToQueue, accepted(playlist, DropTarget.QueueButton))
         assertTrue(ignored(dao, DropTarget.QueueButton))
     }
 
     @Test
     fun `the queue drawer inserts at a position`() {
-        assertEquals(Destination.QueueAt(3), accepted(media, DropTarget.QueueDrawer(3)))
+        assertEquals(Destination.QueueAt(3), accepted(mediaPayload, DropTarget.QueueDrawer(3)))
         assertEquals(Destination.QueueAt(3), accepted(playlist, DropTarget.QueueDrawer(3)))
     }
 
     @Test
     fun `the player bar plays now`() {
-        assertEquals(Destination.PlayNow, accepted(media, DropTarget.PlayerBar))
+        assertEquals(Destination.PlayNow, accepted(mediaPayload, DropTarget.PlayerBar))
         assertEquals(Destination.PlayNow, accepted(playlist, DropTarget.PlayerBar))
         assertTrue(ignored(uploader, DropTarget.PlayerBar))
     }
 
     @Test
     fun `collection favourites media only`() {
-        assertEquals(Destination.Favourite, accepted(media, DropTarget.SidebarCollection))
+        assertEquals(Destination.Favourite, accepted(mediaPayload, DropTarget.SidebarCollection))
         assertTrue(ignored(playlist, DropTarget.SidebarCollection))
         assertEquals(
             DropVerdict.Refuse("Already a favourite"),
-            dropVerdict(media.copy(isFavourite = true), DropTarget.SidebarCollection),
+            dropVerdict(mediaPayload.copy(isFavourite = true), DropTarget.SidebarCollection),
         )
     }
 
     @Test
     fun `following takes uploaders only`() {
         assertEquals(Destination.Follow, accepted(uploader, DropTarget.SidebarFollowing))
-        assertTrue(ignored(media, DropTarget.SidebarFollowing))
+        assertTrue(ignored(mediaPayload, DropTarget.SidebarFollowing))
         assertTrue(ignored(dao, DropTarget.SidebarFollowing))
     }
 
     @Test
     fun `your datadaos takes datadaos only`() {
         assertEquals(Destination.Pin, accepted(dao, DropTarget.SidebarDataDaos))
-        assertTrue(ignored(media, DropTarget.SidebarDataDaos))
+        assertTrue(ignored(mediaPayload, DropTarget.SidebarDataDaos))
         assertTrue(ignored(uploader, DropTarget.SidebarDataDaos))
     }
 
@@ -203,8 +203,8 @@ class DestinationsTest {
 
     @Test
     fun `a tray slot answers exactly as its row in the list`() {
-        destinationsFor(media, context).filter { it.inTray }.forEach { option ->
-            val verdict = dropVerdict(media, DropTarget.TraySlot(option.destination))
+        destinationsFor(mediaPayload, context).filter { it.inTray }.forEach { option ->
+            val verdict = dropVerdict(mediaPayload, DropTarget.TraySlot(option.destination))
             assertTrue(verdict is DropVerdict.Accept, "${option.label} should accept")
         }
     }
