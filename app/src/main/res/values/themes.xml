@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Platform-level theme only. Every in-app colour and type size comes from Compose
+  (:core-design, Theme.kt). This exists so the window has no action bar and is painted in the
+  app's ground colour before the first Compose frame. The values mirror Palette in Tokens.kt.
+-->
+<resources>
+    <color name="ipfsmedia_ground_light">#FFFFFF</color>
+    <color name="ipfsmedia_ground_dark">#161616</color>
+    <color name="ipfsmedia_accent">#7C3AED</color>
+
+    <style name="Theme.IpfsMedia" parent="@android:style/Theme.Material.Light.NoActionBar">
+        <item name="android:windowBackground">@color/ipfsmedia_ground_light</item>
+        <item name="android:colorAccent">@color/ipfsmedia_accent</item>
+        <item name="android:windowLayoutInDisplayCutoutMode">shortEdges</item>
+    </style>
+</resources>

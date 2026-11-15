@@ -1,0 +1,27 @@
+# macOS
+.DS_Store
+._*
+
+# Gradle / Android build output
+.gradle/
+build/
+**/build/
+captures/
+.externalNativeBuild/
+.cxx/
+*.apk
+*.ap_
+*.aab
+output.json
+
+# Local configuration (machine paths, the WalletConnect project id)
+local.properties
+
+# Kotlin / IDE
+.kotlin/
+*.iml
+.idea/
+*.hprof
+
+# Logs
+*.log

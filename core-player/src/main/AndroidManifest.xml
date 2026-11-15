@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- Playback carries on with the window closed, which on Android means a foreground service. -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
+    <!-- Held by the player while it plays, so the next album can be fetched with the lid closed. -->
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+
+    <application>
+        <!--
+          `exported="true"` is required by Media3: the system's media controls, media keys and
+          Bluetooth reach the session through this service, and they are other processes.
+          Media3 decides what each caller may do: this app and trusted system controllers get
+          playback commands, any other app gets read access only, and every item added to the
+          player is rebuilt by the service from this app's own data (see PlaybackService).
+
+          The foreground service type has to agree with the permission above or startForeground
+          throws on API 34 and later.
+        -->
+        <service
+            android:name=".PlaybackService"
+            android:exported="true"
+            android:foregroundServiceType="mediaPlayback">
+            <intent-filter>
+                <action android:name="androidx.media3.session.MediaSessionService" />
+            </intent-filter>
+        </service>
+    </application>
+
+</manifest>

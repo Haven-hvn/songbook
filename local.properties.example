@@ -1,0 +1,33 @@
+# Googlebook IPFSMedia — local configuration
+#
+# Copy to `local.properties` (git-ignored) and fill in. Every key is optional: with none set the app
+# builds and runs, and each subsystem says "not configured" instead of failing like a network error.
+#
+# In CI the same keys are written by the workflow from repository secrets and variables
+# (see .github/workflows/android.yml).
+
+# Android SDK. Written by Android Studio on first sync; set by hand for a headless build.
+#sdk.dir=/path/to/Android/sdk
+
+# Wallet (Reown AppKit / WalletConnect v2). Project id from https://dashboard.reown.com.
+# Without it the wallet cannot connect, and since the app is wallet-first, nothing else opens.
+# Surfaces as BuildConfig.WALLET_PROJECT_ID in :core-wallet.
+wallet.projectId=
+# The page wallets show as this app's home. Blank uses a placeholder that belongs to nobody.
+wallet.appUrl=
+
+# Haven-AOL canister (Internet Computer): unwraps content keys. Blank uses the public Haven canister.
+haven.aol.canisterId=
+haven.aol.icHost=https://ic0.app
+
+# Arkiv chain JSON-RPC. Blank uses the Rabdi testnet, the same default as haven-dapp and haven-cli.
+arkiv.endpointUrl=
+# Optional Arkiv access key, sent as X-API-KEY on reads. It only raises the read quota.
+arkiv.apiKey=
+
+# EVM RPCs for membership checks (balanceOf, read-only). Blank uses public endpoints.
+evm.rpc.ethereum=
+evm.rpc.base=
+evm.rpc.arbitrum=
+evm.rpc.optimism=
+evm.rpc.sepolia=

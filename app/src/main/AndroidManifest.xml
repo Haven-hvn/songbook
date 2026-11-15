@@ -1,0 +1,99 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <!--
+      Network endpoints that remain (docs/PLAN.md §4): the Arkiv RPC, Filecoin storage
+      providers, the Haven-AOL canister, public EVM RPCs for membership checks, and the
+      WalletConnect relay. No accounts, analytics or ads.
+    -->
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <!--
+      The media notification. Playback and the system's media controls work without it; the
+      app asks the first time something is played, never at launch.
+    -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- FOREGROUND_SERVICE, FOREGROUND_SERVICE_MEDIA_PLAYBACK and WAKE_LOCK come from :core-player. -->
+
+    <!-- No permission to read the device's files is requested: there are no local files in this app. -->
+
+    <!-- A Googlebook has a touchscreen, a keyboard and a pointer; none of them is required. -->
+    <uses-feature
+        android:name="android.hardware.touchscreen"
+        android:required="false" />
+
+    <application
+        android:name=".IpfsMediaApp"
+        android:allowBackup="false"
+        android:dataExtractionRules="@xml/data_extraction_rules"
+        android:enableOnBackInvokedCallback="true"
+        android:fullBackupContent="false"
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:supportsRtl="true"
+        android:theme="@style/Theme.IpfsMedia"
+        tools:replace="android:dataExtractionRules,android:fullBackupContent">
+
+        <!--
+          One activity, in a freely resizable desktop window.
+
+          There is no `android:configChanges` here on purpose (haven-mobile has one). A resize
+          recreates the activity, and scroll position, search text, selection, the open tray
+          and the navigation history are all saved state, so a resize loses nothing
+          (docs/PLAN.md §6). Playback is unaffected: the player lives in the service.
+
+          `singleTask` so the wallet's return link and the media notification both come back
+          to the one window instead of opening another.
+        -->
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:launchMode="singleTask"
+            android:resizeableActivity="true"
+            android:supportsPictureInPicture="true"
+            android:theme="@style/Theme.IpfsMedia"
+            android:windowSoftInputMode="adjustResize">
+
+            <!-- Window size on first open, and the smallest the layout is designed for. -->
+            <layout
+                android:defaultWidth="1180dp"
+                android:defaultHeight="760dp"
+                android:gravity="center"
+                android:minWidth="480dp"
+                android:minHeight="560dp" />
+
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+
+            <!--
+              The wallet's return leg. After the user approves in MetaMask, the wallet opens
+              ipfsmedia://connect to hand control back; without this filter the user is left in
+              the wallet and the request times out. Must match WALLET_REDIRECT_URL in
+              :core-wallet. The link carries no command: the activity passes it to AppKit only
+              when it is a WalletConnect envelope, and ignores anything else.
+            -->
+            <intent-filter android:autoVerify="false">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data
+                    android:host="connect"
+                    android:scheme="ipfsmedia" />
+            </intent-filter>
+        </activity>
+
+    </application>
+
+    <!-- So "is a wallet installed" can be answered before offering to open one. -->
+    <queries>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="wc" />
+        </intent>
+    </queries>
+
+</manifest>

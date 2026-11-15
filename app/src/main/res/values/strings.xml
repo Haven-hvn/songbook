@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- The one string the platform needs outside Compose: the launcher and window title. -->
+    <string name="app_name">Googlebook IPFSMedia</string>
+</resources>

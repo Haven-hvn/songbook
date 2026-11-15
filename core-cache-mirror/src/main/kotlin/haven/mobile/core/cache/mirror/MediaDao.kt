@@ -1,0 +1,68 @@
+package haven.mobile.core.cache.mirror
+
+import androidx.room.Dao
+import androidx.room.Insert
+import androidx.room.OnConflictStrategy
+import androidx.room.Query
+import kotlinx.coroutines.flow.Flow
+
+@Dao
+interface MediaDao {
+    /**
+     * Items published by [owner] — the Library's query.
+     *
+     * `lastAccessedAt` is null until something is opened, and SQLite sorts nulls first on DESC, so
+     * `createdAt` breaks the tie. Without it a fresh library appeared in arbitrary order.
+     */
+    @Query(
+        "SELECT * FROM media_items WHERE owner = :owner " +
+            "ORDER BY lastAccessedAt DESC, createdAt DESC",
+    )
+    fun observeLibrary(owner: String): Flow<List<MediaMirrorEntity>>
+
+    /**
+     * Everything mirrored for the connected wallet, newest first — the accessible set.
+     *
+     * Safe to read unscoped because the database file is itself per wallet
+     * (`haven-mirror-<address>.db`), so "everything here" already means "everything this wallet was
+     * shown". Includes entities that have since expired on Arkiv, which is deliberate (FR-CACHE-3):
+     * the dapp keeps showing them, cached, rather than making them vanish.
+     */
+    @Query("SELECT * FROM media_items ORDER BY createdAt DESC")
+    fun observeAccessible(): Flow<List<MediaMirrorEntity>>
+
+    @Query("SELECT * FROM media_items WHERE id = :id")
+    fun observeItem(id: String): Flow<MediaMirrorEntity?>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertAll(items: List<MediaMirrorEntity>)
+
+    @Query("SELECT id FROM media_items")
+    suspend fun getAllIds(): List<String>
+
+    /** Prune rows no longer in the accessible set (sold/revoked access, expired gates). */
+    @Query("DELETE FROM media_items WHERE id IN (:ids)")
+    suspend fun deleteByIds(ids: Collection<String>)
+
+    @Query("DELETE FROM media_items WHERE owner = :owner")
+    suspend fun deleteForOwner(owner: String)
+
+    @Query("DELETE FROM media_items")
+    suspend fun deleteAll()
+
+    @Query("UPDATE media_items SET contentCacheStatus = :status WHERE id = :id")
+    suspend fun updateContentCacheStatus(id: String, status: String)
+
+    @Query("UPDATE media_items SET lastAccessedAt = :timestamp WHERE id = :id")
+    suspend fun touchLastAccessed(id: String, timestamp: String)
+
+    /** Rows that have been opened, so a catalogue rewrite can carry the stamp across. */
+    @Query("SELECT id, lastAccessedAt FROM media_items WHERE lastAccessedAt IS NOT NULL")
+    suspend fun getLastAccessed(): List<LastAccessedRow>
+}
+
+/** Projection for [MediaDao.getLastAccessed]. */
+data class LastAccessedRow(
+    val id: String,
+    val lastAccessedAt: String?,
+)

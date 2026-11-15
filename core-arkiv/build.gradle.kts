@@ -1,0 +1,52 @@
+import java.util.Properties
+
+plugins {
+    id("ipfsmedia.android.library")
+    id("com.google.devtools.ksp")
+    id("com.google.dagger.hilt.android")
+}
+
+val localProps = Properties().apply {
+    val f = rootProject.file("local.properties")
+    if (f.exists()) f.inputStream().use { load(it) }
+}
+
+android {
+    namespace = "haven.mobile.core.arkiv"
+
+    buildFeatures {
+        buildConfig = true
+    }
+
+    defaultConfig {
+        // Arkiv chain JSON-RPC URL, blank unless overridden in local.properties. A blank
+        // BuildConfig falls back to the Rabdi default in ArkivDiModule, so every build
+        // can reach the chain; the client's "not configured" path only triggers on an
+        // explicitly blank ArkivConfig (e.g. tests).
+        buildConfigField(
+            "String",
+            "ARKIV_ENDPOINT_URL",
+            "\"${localProps.getProperty("arkiv.endpointUrl", "")}\"",
+        )
+        // Optional read-quota key (X-API-KEY). Blank is the anonymous tier.
+        buildConfigField(
+            "String",
+            "ARKIV_API_KEY",
+            "\"${localProps.getProperty("arkiv.apiKey", "")}\"",
+        )
+    }
+}
+
+dependencies {
+    implementation(project(":core-domain"))
+    implementation("io.github.haven-hvn:foc-cache:0.4.5")
+    implementation(libs.kotlinx.serialization)
+    implementation(libs.okhttp)
+    implementation(libs.kotlinx.datetime)
+    implementation("com.jakewharton.timber:timber:5.0.1")
+    implementation("com.google.dagger:hilt-android:2.60.1")
+    ksp("com.google.dagger:hilt-compiler:2.60.1")
+    // Real org.json on the JVM test classpath: android.jar stubs throw RuntimeException("Stub!").
+    testImplementation("org.json:json:20231013")
+    testImplementation(libs.kotlinx.coroutines)
+}

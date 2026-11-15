@@ -1,0 +1,159 @@
+name: android
+
+# The only place this project is built. Nothing is compiled or run on a developer's machine
+# (docs/PLAN.md §8), so this workflow is the compiler, the test runner and the first launch.
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: android-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: "17"
+          distribution: temurin
+          cache: gradle
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v4
+
+      - name: Make gradlew executable
+        run: chmod +x gradlew
+
+      # Every key is optional: with none set the app still builds, and each subsystem says
+      # "not configured" at run time. The WalletConnect project id comes from a repository
+      # secret and is never written into the repository.
+      - name: Write local.properties
+        env:
+          WALLET_PROJECT_ID: ${{ secrets.WALLET_PROJECT_ID }}
+          WALLET_APP_URL: ${{ vars.WALLET_APP_URL }}
+          ARKIV_API_KEY: ${{ secrets.ARKIV_API_KEY }}
+        run: |
+          {
+            echo "sdk.dir=${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}"
+            echo "wallet.projectId=${WALLET_PROJECT_ID}"
+            echo "wallet.appUrl=${WALLET_APP_URL}"
+            echo "haven.aol.canisterId=gny6k-fqaaa-aaaab-ag3ra-cai"
+            echo "haven.aol.icHost=https://ic0.app"
+            echo "arkiv.endpointUrl=https://rpc.rabdi.db-chain.testnet.arkiv.network"
+            echo "arkiv.apiKey=${ARKIV_API_KEY}"
+          } > local.properties
+          # Shown without the secrets, so a misconfigured build can be read from the log.
+          sed -E 's/^(wallet\.projectId|arkiv\.apiKey)=.+$/\1=<set>/' local.properties
+          if [ -z "${WALLET_PROJECT_ID}" ]; then
+            echo "::warning::WALLET_PROJECT_ID is not set. The app builds, but no wallet can connect, and the app is wallet-first."
+          fi
+
+      - name: Install the Android platform and NDK
+        run: |
+          SDK="${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}"
+          yes | "$SDK/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null || true
+          "$SDK/cmdline-tools/latest/bin/sdkmanager" "platforms;android-37" "ndk;29.0.14206865"
+          echo "ANDROID_NDK_HOME=$SDK/ndk/29.0.14206865" >> "$GITHUB_ENV"
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-linux-android,armv7-linux-androideabi,x86_64-linux-android
+
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: core-haven-aol/src/main/rust/haven_vetkeys
+
+      # The key-unwrapping code runs on the host first: if this fails, nothing gated can open.
+      - name: VetKeys host tests
+        working-directory: core-haven-aol/src/main/rust/haven_vetkeys
+        run: cargo test --locked
+
+      - name: Build vetkeys native libraries
+        run: bash tools/build-vetkeys-android.sh
+
+      - name: Unit tests
+        run: ./gradlew testDebugUnitTest --continue --stacktrace
+
+      - name: Upload test reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-reports
+          path: "**/build/reports/tests/"
+          if-no-files-found: ignore
+
+      - name: Build the debug APK
+        run: ./gradlew :app:assembleDebug --stacktrace
+
+      - name: Upload the APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-debug
+          path: app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+
+  # Installs the APK on an emulator and starts it, so a crash at launch shows up here rather
+  # than on someone's Googlebook. It reports; it does not gate the build, because an emulator
+  # on a hosted runner fails for its own reasons often enough.
+  first-launch:
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    continue-on-error: true
+    steps:
+      - name: Download the APK
+        uses: actions/download-artifact@v4
+        with:
+          name: app-debug
+          path: /tmp/apk
+
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: Start the app on an emulator
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          target: google_apis
+          arch: x86_64
+          profile: pixel_tablet
+          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim
+          disable-animations: true
+          script: |
+            adb logcat -c
+            adb install -r /tmp/apk/app-debug.apk
+            adb shell am start -W -n app.ipfsmedia.player/.MainActivity
+            sleep 15
+            adb logcat -d > /tmp/logcat.txt
+            echo "=== fatal exceptions ==="
+            grep -A 40 "FATAL EXCEPTION" /tmp/logcat.txt | head -n 200 || echo "none"
+            echo "=== is the app still running ==="
+            adb shell pidof app.ipfsmedia.player || (echo "::error::The app is not running 15 seconds after launch" && exit 1)
+
+      - name: Upload logcat
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: first-launch-logcat
+          path: /tmp/logcat.txt
+          if-no-files-found: ignore
