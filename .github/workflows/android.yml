@@ -67,7 +67,7 @@ jobs:
         run: |
           SDK="${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}"
           yes | "$SDK/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null || true
-          "$SDK/cmdline-tools/latest/bin/sdkmanager" "platforms;android-37" "ndk;29.0.14206865"
+          "$SDK/cmdline-tools/latest/bin/sdkmanager" "platforms;android-37.0" "ndk;29.0.14206865"
           echo "ANDROID_NDK_HOME=$SDK/ndk/29.0.14206865" >> "$GITHUB_ENV"
 
       - name: Install Rust toolchain
