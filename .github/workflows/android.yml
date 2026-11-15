@@ -89,7 +89,27 @@ jobs:
         run: bash tools/build-vetkeys-android.sh
 
       - name: Unit tests
-        run: ./gradlew testDebugUnitTest --continue --stacktrace
+        run: |
+          set -o pipefail
+          ./gradlew testDebugUnitTest --continue --stacktrace --console=plain 2>&1 | tee unit-tests.log
+
+      # Kotlin's CompilationErrorException carries no detail; the real diagnostics are the
+      # "e: file://..." lines earlier in the log. Surface them and keep the full log.
+      - name: Show compiler diagnostics
+        if: failure()
+        run: |
+          echo "=== Kotlin diagnostics ==="
+          grep -nE '^(e|w): ' unit-tests.log | head -n 300 || true
+          echo "=== failed tasks ==="
+          grep -nE 'Execution failed for task|FAILED' unit-tests.log | head -n 100 || true
+
+      - name: Upload the Gradle log
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: unit-test-gradle-log
+          path: unit-tests.log
+          if-no-files-found: ignore
 
       - name: Upload test reports
         if: always()
