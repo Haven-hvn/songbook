@@ -129,6 +129,19 @@ jobs:
           path: app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
 
+      # The x86_64 APK for an emulator or a ChromeOS device. Same build, only the
+      # packaged ABI differs, so the universal `app-debug` artifact above is unchanged.
+      # It runs after the upload: enabling splits replaces, not adds, the APK output.
+      - name: Build the x86_64 APK
+        run: ./gradlew :app:assembleDebug -Pabi=x86_64 --stacktrace
+
+      - name: Upload the x86_64 APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-debug-x86_64
+          path: app/build/outputs/apk/debug/app-x86_64-debug.apk
+          if-no-files-found: error
+
   # Installs the APK on an emulator and starts it, so a crash at launch shows up here rather
   # than on someone's Googlebook. It reports; it does not gate the build, because an emulator
   # on a hosted runner fails for its own reasons often enough.

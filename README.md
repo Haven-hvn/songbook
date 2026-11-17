@@ -52,6 +52,11 @@ The workflow reads these from the repository's settings:
 
 The APK is uploaded as the `app-debug` artifact. It is debug-signed; there is no release signing.
 
+The x86_64 APK, for an Android emulator or a ChromeOS device, is built with
+`./gradlew :app:assembleDebug -Pabi=x86_64` and uploaded as the
+`app-debug-x86_64` artifact. `-Pabi=arm64-v8a,x86_64` builds one APK per ABI;
+without `-Pabi` the APK stays universal.
+
 To build elsewhere, copy `local.properties.example` to `local.properties`, fill it in, build the
 native library with `bash tools/build-vetkeys-android.sh`, then `./gradlew :app:assembleDebug`.
 
