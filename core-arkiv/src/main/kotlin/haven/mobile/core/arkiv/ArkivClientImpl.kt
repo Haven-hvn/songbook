@@ -933,6 +933,7 @@ class ArkivClientImpl @Inject constructor(
         val extension = deriveExtension(mimeType, sourceUri)
         val title = firstString("title") ?: "Untitled"
         val pieceCid = firstString("piece", "pieceCid")
+        val rootCid = firstString("fcid", "filecoinCid")
 
         // Gate presence decides encryption — 2.0 carries no is_encrypted flag.
         val gateMetadata = parseGateMetadata("gate")
@@ -963,24 +964,36 @@ class ArkivClientImpl @Inject constructor(
             createdAt = parseCreatedAt(),
             createdAtBlock = firstLong("created_at_block", "createdAtBlock"),
             expiresAtBlock = firstLong("expires_at_block", "expiresAtBlock"),
-            pieceRef = pieceCid?.let { cid ->
+            // haven-cli writes one locator per record class and never both:
+            // gated records carry `piece` (a CommP, bafkzcib…), clear records
+            // carry `fcid` (the UnixFS root, bafkre…). The second case is
+            // every ungated upload — all StepMania packs/files among them —
+            // and it is retrievable only over the IPFS path
+            // (SP `/ipfs/{root}?format=raw` and gateways discovered via
+            // Delegated Routing), never over `/piece`. Synthesize an IPFS
+            // PieceRef from `fcid` so clear records play instead of failing
+            // with NO_PIECE_REF. FilBeam is disabled there: it serves
+            // `/piece`, not `/ipfs`.
+            pieceRef = (pieceCid ?: rootCid)?.let { cid ->
+                val viaRoot = pieceCid == null
                 PieceRef(
                     pieceCid = cid,
                     // Size/providers/gateways stay unknown: foc hedges the Beam URL
                     // (front of the race when cdnEnabled) with any SP endpoints.
                     // A stale provider list baked in from an index would send
-                    // fetches at the wrong hosts.
-                    size = 0L,
+                    // fetches at the wrong hosts. For a root locator the
+                    // payload `size` is the file size and seeds progress.
+                    size = if (viaRoot) firstLong("size") ?: 0L else 0L,
                     providerServiceUrls = emptyList(),
                     walletAddress = beamWallet,
-                    cdnEnabled = beamWallet != null,
+                    cdnEnabled = !viaRoot && beamWallet != null,
                     chain = focChain,
-                    ipfsIndexed = false,
-                    unixFsRoot = null,
-                    trustlessGateways = emptyList(),
+                    ipfsIndexed = viaRoot,
+                    unixFsRoot = if (viaRoot) rootCid else null,
+                    trustlessGateways = if (viaRoot) PieceRef.DEFAULT_GATEWAYS else emptyList(),
                 )
             },
-            filecoinCid = firstString("fcid", "filecoinCid"),
+            filecoinCid = rootCid,
             // 2.0 never indexes the encrypted locator — always null (kept on the model for API stability).
             encryptedCid = null,
             cidHash = firstString("sha256_ct", "cidHash"),
