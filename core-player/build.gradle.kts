@@ -27,6 +27,8 @@ dependencies {
     api(libs.androidx.media3.session)
     implementation(libs.androidx.media3)
     implementation(libs.androidx.media3.datasource)
+    // Bundled libvorbis: Vorbis-in-OGG has no platform decoder on many devices.
+    implementation(libs.androidx.media3.decoder.vorbis)
     implementation(libs.timber)
     implementation(libs.hilt)
     ksp(libs.hilt.compiler)
