@@ -12,6 +12,7 @@ import androidx.media3.common.Timeline
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.datasource.FileDataSource
 import androidx.media3.datasource.ResolvingDataSource
+import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.extractor.DefaultExtractorsFactory
@@ -34,6 +35,7 @@ import dagger.hilt.android.EntryPointAccessors
 import dagger.hilt.components.SingletonComponent
 import haven.mobile.core.cache.SpoolPins
 import haven.mobile.core.wallet.WalletSession
+import io.github.anilbeesetti.nextlib.media3ext.ffdecoder.NextRenderersFactory
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -121,7 +123,14 @@ class PlaybackService : MediaSessionService() {
         val sources = DefaultMediaSourceFactory(dataSources, extractors)
             .setLoadErrorHandlingPolicy(StagingAwareRetryPolicy())
 
+        // FFmpeg software decoders (Vorbis etc.) as a fallback behind the
+        // platform MediaCodec decoders: extension renderers ON keeps hardware
+        // decoders first and only consults FFmpeg when they cannot decode.
+        val renderersFactory = NextRenderersFactory(applicationContext)
+            .setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_ON)
+
         player = ExoPlayer.Builder(this)
+            .setRenderersFactory(renderersFactory)
             .setMediaSourceFactory(sources)
             .setAudioAttributes(
                 AudioAttributes.Builder()

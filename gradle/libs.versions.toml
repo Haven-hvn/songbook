@@ -57,6 +57,10 @@ androidx-media3-common = { module = "androidx.media3:media3-common", version.ref
 androidx-media3-datasource = { module = "androidx.media3:media3-datasource", version.ref = "media3" }
 androidx-media3-session = { module = "androidx.media3:media3-session", version.ref = "media3" }
 androidx-media3-ui = { module = "androidx.media3:media3-ui", version.ref = "media3" }
+# FFmpeg software decoders for Media3 (Vorbis, Opus, FLAC, ALAC...) on devices
+# without a platform decoder. Third-party prebuilt AAR from Maven Central; the
+# version prefix must match the pinned Media3 version ("1.11.1").
+nextlib-media3ext = { module = "io.github.anilbeesetti:nextlib-media3ext", version = "1.11.1-0.19.0" }
 androidx-room-runtime = { module = "androidx.room:room-runtime", version.ref = "room" }
 androidx-room-compiler = { module = "androidx.room:room-compiler", version.ref = "room" }
 androidx-room-ktx = { module = "androidx.room:room-ktx", version.ref = "room" }

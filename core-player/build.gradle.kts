@@ -27,6 +27,10 @@ dependencies {
     api(libs.androidx.media3.session)
     implementation(libs.androidx.media3)
     implementation(libs.androidx.media3.datasource)
+    // FFmpeg software decoders (Vorbis/Opus/FLAC...) for devices without a platform
+    // decoder. Wired via NextRenderersFactory in PlaybackService with extension
+    // renderers ON, so platform MediaCodec decoders still win when available.
+    implementation(libs.nextlib.media3ext)
     implementation(libs.timber)
     implementation(libs.hilt)
     ksp(libs.hilt.compiler)
