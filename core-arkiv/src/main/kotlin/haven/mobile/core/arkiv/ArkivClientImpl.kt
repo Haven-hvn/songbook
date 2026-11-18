@@ -85,47 +85,34 @@ class ArkivClientImpl @Inject constructor(
     private val blockTimestampCache = ConcurrentHashMap<Long, Instant>()
 
     /**
-     * Direct `arkiv_query` JSON-RPC against the chain, byte-compatible with `@arkiv-network/sdk`
-     * 1.x `runQuery` (CLI `ArkivEngineClient.query` sends the same shape).
+     * Direct `arkiv_query` JSON-RPC against the chain, in the wire format `@arkiv-network/sdk`
+     * 1.x `runQuery` sends (CLI `ArkivEngineClient.query` sends the same shape).
      *
      * There is no REST gateway in front of Arkiv. Predicates serialize to a query string with
      * type-tagged literals (`gate_token = str('0x…') AND gate_chain = i32(8453)`,
-     * `$owner = addr(0x…)`, `$key = key(0x…)`); options carry the full `select` map plus a hex
-     * `limit` and an opaque `cursor`; the result is `{data, blockNumber, cursor}`. Iteration
-     * ends when `cursor` is absent/empty or the page comes back short.
+     * `$owner = addr(0x…)`, `$key = key(0x…)`); options are `[query, {select, limit, cursor}]`
+     * where `select` is a flat, **unprefixed** map (`key`, `owner`, `creator`, `createdAt`,
+     * `expiresAt`, `attributes`) and `limit` is a hex quantity. The result is
+     * `{data, blockNumber, cursor, count?}`.
+     *
+     * The `$`-prefixed spellings this used to send (`$key`, `$attributes`, …) are the *query
+     * language*'s system-attribute names, not the RPC `select` keys; the node rejects them with
+     * `-32602 Invalid params` ("unknown field `$key`"), which surfaced to users as a generic
+     * network failure. `select.attributes = true` reads every attribute in one array.
      *
      * The tagged literals are load-bearing, verified against the live node: bare hex is
      * rejected ("a hex literal must carry its type"), double-quoted strings are a parse error
      * (single quotes only), and the combinators are `AND`/`OR`, not `&&`/`||`.
      *
-     * Selection keys are `$`-prefixed for system fields (`$key`, `$owner`, `$creator`,
-     * `$createdAt`, `$expiresAt`, `$attributes`) and bare for attribute columns. `payload`
-     * and `content_type` are regular `bytes`/`str` attributes, not system fields.
+     * `payload` and `content_type` are regular `bytes`/`str` attributes (not system fields), so
+     * they arrive inside the `attributes` array rather than as selectable columns — the node
+     * rejects them as `select` keys.
      */
     private fun arkivQuery(query: String, limit: Int, cursor: String?): JSONObject =
         callGate.call("q:$limit:${cursor.orEmpty()}:$query") { arkivQueryUngated(query, limit, cursor) }
 
     private fun arkivQueryUngated(query: String, limit: Int, cursor: String?): JSONObject {
-        val options = JSONObject()
-            .put("select", JSONObject()
-                .put("\$key", true)
-                .put("\$owner", true)
-                .put("\$creator", true)
-                .put("\$createdAt", true)
-                .put("\$updatedAt", false)
-                .put("\$expiresAt", true)
-                .put("\$creationFlags", false)
-                .put("content_type", true)
-                .put("payload", true)
-                .put("\$attributeSchema", false)
-                .put("\$attributes", true))
-            .put("limit", "0x" + limit.toString(16))
-            .apply { cursor?.let { put("cursor", it) } }
-        val body = JSONObject()
-            .put("jsonrpc", "2.0")
-            .put("id", 1)
-            .put("method", "arkiv_query")
-            .put("params", JSONArray().put(query).put(options))
+        val body = buildArkivQueryBody(query, limit, cursor)
             .toString()
             .toRequestBody("application/json".toMediaType())
         val request = Request.Builder().url(config.endpointUrl).post(body)
@@ -167,6 +154,34 @@ class ArkivClientImpl @Inject constructor(
         Regex("\\b429\\b").containsMatchIn(message) || message.contains("ANON_COST_LIMITED")
 
     /**
+     * The `arkiv_query` JSON-RPC envelope, built exactly as `@arkiv-network/sdk` 1.x sends it.
+     *
+     * Internal so the wire shape pins without touching the network: the `$`-prefixed `select`
+     * this used to send was rejected by the node (`-32602 unknown field '$key'`) and showed up
+     * as a generic "network could not be reached" banner. See [arkivQuery] for the shape.
+     */
+    internal fun buildArkivQueryBody(query: String, limit: Int, cursor: String?): JSONObject {
+        val options = JSONObject()
+            .put("select", JSONObject()
+                .put("key", true)
+                .put("owner", true)
+                .put("creator", true)
+                .put("createdAt", true)
+                .put("updatedAt", false)
+                .put("expiresAt", true)
+                .put("creationFlags", false)
+                .put("attributeSchema", false)
+                .put("attributes", true))
+            .put("limit", "0x" + limit.toString(16))
+            .apply { cursor?.let { put("cursor", it) } }
+        return JSONObject()
+            .put("jsonrpc", "2.0")
+            .put("id", 1)
+            .put("method", "arkiv_query")
+            .put("params", JSONArray().put(query).put(options))
+    }
+
+    /**
      * `key = str('value')` predicate, exactly like the SDK serializes `eq(name, string)`.
      * Single quotes only — a double-quoted string is a node parse error.
      */
@@ -183,11 +198,13 @@ class ArkivClientImpl @Inject constructor(
     /**
      * Raw chain row -> the flat shape the item parser reads.
      *
-     * The node returns SDK 1.x flat rows: `$key`/`$owner`/`$creator`/`$createdAt`/
-     * `$expiresAt` system fields plus `$attributes` as a `{name: {type, value}}` map and
-     * individually selected attribute columns as flat fields. Decoding mirrors SDK
-     * `entityFromRpcResult`: block heights land under the `*Block` keys the readers expect,
-     * attributes merge in decoded, and anything unknown is skipped rather than guessed.
+     * The node returns unprefixed system fields (`key`, `owner`, `creator`, `createdAt`,
+     * `expiresAt`) plus `attributes` as an **array** of `{name, type, value}` (see SDK
+     * `entityFromRpcResult` / `decodeAttributes`). The older `$`-prefixed rows and the
+     * `$attributes` name -> `{type, value}` map are still accepted, so a gateway that reshapes
+     * the response keeps working. Decoding mirrors the SDK: block heights land under the
+     * `*Block` keys the readers expect, attributes merge in decoded, and anything unknown is
+     * skipped rather than guessed.
      *
      * The decoded payload then merges over the attributes — dapp parity
      * (`parseArkivEntityToVideo` spreads `{...attributes, ...payload}`): the piece CID,
@@ -197,27 +214,38 @@ class ArkivClientImpl @Inject constructor(
      */
     internal fun normalizeRpcEntity(raw: JSONObject): JSONObject {
         val out = JSONObject()
-        raw.optString("\$key", null)?.let { out.put("id", it); out.put("key", it); out.put("entityKey", it) }
-            ?: raw.optString("key", null)?.let { out.put("id", it); out.put("key", it); out.put("entityKey", it) }
-        raw.optString("\$owner", null)?.let { out.put("owner", it) }
-            ?: raw.optString("owner", null)?.let { out.put("owner", it) }
-        raw.optString("\$creator", null)?.let { out.put("creator", it) }
-            ?: raw.optString("creator", null)?.let { out.put("creator", it) }
-        raw.optString("content_type", null)?.let { out.put("contentType", it) }
-            ?: raw.optString("contentType", null)?.let { out.put("contentType", it) }
-        // Payload is a bytes attribute: hex-encoded JSON bytes. Decode to UTF-8 text for
-        // the attestation parser, and merge below for every other reader.
-        raw.optString("payload", null)
-            ?.let { hexToBytesOrNull(it) }
-            ?.let { runCatching { it.toString(Charsets.UTF_8) }.getOrNull() }
-            ?.takeIf { it.isNotBlank() }
-            ?.let { out.put("payloadJson", it) }
-        decodeRpcInt(raw.opt("\$createdAt"))?.let { out.put("createdAtBlock", it) }
-            ?: decodeRpcInt(raw.opt("createdAt"))?.let { out.put("createdAtBlock", it) }
-        decodeRpcInt(raw.opt("\$expiresAt"))?.let { out.put("expiresAtBlock", it) }
-            ?: decodeRpcInt(raw.opt("expiresAt"))?.let { out.put("expiresAtBlock", it) }
-        // `$attributes` is a map of name -> {type, value}; flat attribute columns appear
-        // as top-level fields on the row. Both shapes are handled.
+        // System fields first: an attribute may share a name with one (a display-name
+        // `creator` attribute), and the row's own identity must win for the binding check.
+        (raw.optString("key", null)
+            ?: raw.optString("\$key", null)
+            ?: raw.optString("entityKey", null))
+            ?.let { out.put("id", it); out.put("key", it); out.put("entityKey", it) }
+        (raw.optString("owner", null)
+            ?: raw.optString("\$owner", null))
+            ?.let { out.put("owner", it) }
+        (raw.optString("creator", null)
+            ?: raw.optString("\$creator", null))
+            ?.let { out.put("creator", it) }
+        (decodeRpcInt(raw.opt("createdAt"))
+            ?: decodeRpcInt(raw.opt("\$createdAt")))
+            ?.let { out.put("createdAtBlock", it) }
+        (decodeRpcInt(raw.opt("expiresAt"))
+            ?: decodeRpcInt(raw.opt("\$expiresAt")))
+            ?.let { out.put("expiresAtBlock", it) }
+
+        // The node's `attributes` array: `[{name, type, value}]`. Attribute names are unique
+        // per entity, so decoding into a name-keyed map loses nothing.
+        val attributeArray = raw.optJSONArray("attributes")
+        if (attributeArray != null) {
+            for (i in 0 until attributeArray.length()) {
+                val entry = attributeArray.optJSONObject(i) ?: continue
+                val name = entry.optString("name", null)?.takeIf { it.isNotEmpty() } ?: continue
+                decodeRpcValue(entry.optString("type", null), entry.opt("value"))
+                    ?.let { out.put(name, it) }
+            }
+        }
+        // Legacy `$attributes` map of name -> {type, value}; flat attribute columns appear as
+        // top-level fields on the row. Both shapes are handled.
         val attributes = raw.optJSONObject("\$attributes")
         if (attributes != null) {
             attributes.keys().forEach { name ->
@@ -232,12 +260,30 @@ class ArkivClientImpl @Inject constructor(
             "\$updatedAt", "\$expiresAt", "\$creationFlags", "\$attributes",
             "\$attributeSchema", "key", "owner", "creator", "createdAt",
             "updatedAt", "expiresAt", "creationFlags", "contentType",
-            "payload", "attributeSchema", "attributes", "data", "blockNumber", "cursor")
+            "payload", "attributeSchema", "attributes", "data", "blockNumber",
+            "cursor", "count")
         raw.keys().forEach { key ->
             if (key !in SYSTEM_KEYS) {
                 decodeRpcValue(null, raw.opt(key))?.let { out.put(key, it) }
             }
         }
+
+        // `content_type` and `payload` are ordinary attributes, so they arrive inside the
+        // `attributes` array (and are already in `out` under their own names). Fall back to
+        // the top-level spelling for the legacy flat shape.
+        val contentType = out.optString("content_type", null)
+            ?: out.optString("contentType", null)
+            ?: raw.optString("content_type", null)
+            ?: raw.optString("contentType", null)
+        contentType?.let { out.put("contentType", it) }
+        // Payload is a bytes attribute: hex-encoded JSON bytes. Decode to UTF-8 text for
+        // the attestation parser, and merge below for every other reader.
+        (out.optString("payload", null) ?: raw.optString("payload", null))
+            ?.let { hexToBytesOrNull(it) }
+            ?.let { runCatching { it.toString(Charsets.UTF_8) }.getOrNull() }
+            ?.takeIf { it.isNotBlank() }
+            ?.let { out.put("payloadJson", it) }
+
         out.optString("payloadJson", null)?.takeIf { it.isNotBlank() }?.let { text ->
             val payload = runCatching { JSONObject(text) }.getOrNull() ?: return@let
             payload.keys().forEach { key ->
@@ -246,8 +292,9 @@ class ArkivClientImpl @Inject constructor(
         }
         // Row identity wins: a `creator` *attribute* (display name) must never overwrite the
         // creator address the binding check needs, so it is preserved under its own key.
-        raw.optString("\$creator", null)?.let { out.put("creatorAddress", it) }
-            ?: raw.optString("creator", null)?.let { out.put("creatorAddress", it) }
+        (raw.optString("creator", null)
+            ?: raw.optString("\$creator", null))
+            ?.let { out.put("creatorAddress", it) }
         return out
     }
 

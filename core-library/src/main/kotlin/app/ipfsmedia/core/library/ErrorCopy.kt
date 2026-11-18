@@ -37,8 +37,11 @@ fun describeError(code: String, detail: String? = null, retryAtMillis: Long? = n
         code,
     )
     "NETWORK_ERROR" -> UserMessage(
-        "The network could not be reached.",
-        "Check the connection and try again. What is already on this device still plays.",
+        // `ArkivClientImpl.networkError` puts the host, failing call, exception class, and
+        // root cause in the message. Dropping it here is why a rejected RPC query read to
+        // users (and to us) as a plain "no connectivity" banner; show what actually failed.
+        detail?.takeIf { it.isNotBlank() } ?: "The network could not be reached.",
+        "What is already on this device still plays.",
         code,
     )
     "CANISTER_OUT_OF_CYCLES" -> UserMessage(
