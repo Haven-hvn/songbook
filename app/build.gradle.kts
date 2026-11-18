@@ -7,6 +7,16 @@ plugins {
     id("com.google.dagger.hilt.android")
 }
 
+// `-Pabi=x86_64` (or a comma-separated list, e.g. `-Pabi=arm64-v8a,x86_64`) builds one APK
+// per ABI, named app-<abi>-debug.apk. Without it the APK stays universal, which is what the
+// `app-debug` artifact and the x86_64 emulator job already use.
+val requestedAbis = providers.gradleProperty("abi").orNull
+    ?.split(',')
+    ?.map { it.trim() }
+    ?.filter { it.isNotEmpty() }
+    ?.toSet()
+    ?.takeIf { it.isNotEmpty() }
+
 android {
     namespace = "app.ipfsmedia.player"
 
@@ -22,6 +32,17 @@ android {
     buildFeatures {
         compose = true
         buildConfig = true
+    }
+
+    // Only when `-Pabi` is given: split the APK by ABI instead of shipping every
+    // ABI in one file. Disabled by default so the release artifact is unchanged.
+    splits {
+        abi {
+            isEnable = requestedAbis != null
+            isUniversalApk = false
+            reset()
+            requestedAbis?.let { include(*it.toTypedArray()) }
+        }
     }
 
     // Required by io.github.haven-hvn:foc-cache (it declares core library desugaring in its
