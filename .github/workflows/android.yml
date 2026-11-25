@@ -52,7 +52,7 @@ jobs:
             echo "sdk.dir=${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}"
             echo "wallet.projectId=${WALLET_PROJECT_ID}"
             echo "wallet.appUrl=${WALLET_APP_URL}"
-            echo "haven.aol.canisterId=gny6k-fqaaa-aaaab-ag3ra-cai"
+            echo "haven.aol.canisterId=3gzy3-kaaaa-aaaan-q6y6q-cai"
             echo "haven.aol.icHost=https://ic0.app"
             echo "arkiv.endpointUrl=https://rpc.rabdi.db-chain.testnet.arkiv.network"
             echo "arkiv.apiKey=${ARKIV_API_KEY}"
