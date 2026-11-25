@@ -85,3 +85,5 @@ native library with `bash tools/build-vetkeys-android.sh`, then `./gradlew :app:
 This repository's own licence is the one at its root in the hosting repository. Code copied from
 other projects, and their licences, are listed in `NOTICE` and `docs/UPSTREAM.md`.
 
+
+# Arkiv API key: now baked via secrets.ARKIV_API_KEY (rebuilt 2026-11-25)
