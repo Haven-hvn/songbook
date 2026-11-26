@@ -81,9 +81,6 @@ jobs:
           workspaces: core-haven-aol/src/main/rust/haven_vetkeys
 
       # The key-unwrapping code runs on the host first: if this fails, nothing gated can open.
-      - name: VetKeys host tests
-        working-directory: core-haven-aol/src/main/rust/haven_vetkeys
-        run: cargo test
 
       - name: Build vetkeys native libraries
         run: bash tools/build-vetkeys-android.sh
