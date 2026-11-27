@@ -257,6 +257,12 @@ private fun <T> Result<T>.recoverToHavenError(fallbackMessage: String): Result<T
     recoverCatching { throwable ->
         throw when (throwable) {
             is HavenError -> throwable
-            else -> HavenError.CacheReadFailed(throwable.message ?: fallbackMessage, throwable)
+            else -> {
+                Timber.w(throwable, "HavenCache: %s (%s)", fallbackMessage, throwable.javaClass.simpleName)
+                HavenError.CacheReadFailed(
+                    "${throwable.javaClass.simpleName}: ${throwable.message ?: fallbackMessage}",
+                    throwable,
+                )
+            }
         }
     }

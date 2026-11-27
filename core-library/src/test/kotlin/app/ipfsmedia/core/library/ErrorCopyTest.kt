@@ -36,4 +36,15 @@ class ErrorCopyTest {
     fun `null network detail falls back to the plain line`() {
         assertEquals("The network could not be reached.", describeError("NETWORK_ERROR").what)
     }
+
+    @Test
+    fun `cache write and read errors preserve diagnostic detail`() {
+        val writeDetail = "IOException: No space left on device"
+        assertEquals(writeDetail, describeError("CACHE_WRITE_FAILED", writeDetail).what)
+        assertEquals("The file could not be written to this device.", describeError("CACHE_WRITE_FAILED").what)
+
+        val readDetail = "EOFException: unexpected end of CAR stream"
+        assertEquals(readDetail, describeError("CACHE_READ_FAILED", readDetail).what)
+        assertEquals("The file could not be read from this device.", describeError("CACHE_READ_FAILED").what)
+    }
 }

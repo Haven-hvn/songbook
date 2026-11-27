@@ -8,6 +8,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
+import timber.log.Timber
 import java.io.File
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -133,6 +134,13 @@ class PlaintextSpoolImpl @Inject constructor(
 
                 if (target.exists()) target.delete()
                 if (!partial.renameTo(target)) {
+                    Timber.w(
+                        "PlaintextSpool: rename failed cid=%s written=%d partial=%s target=%s",
+                        pieceCid,
+                        written,
+                        partial.absolutePath,
+                        target.absolutePath,
+                    )
                     partial.delete()
                     return@withContext Result.failure(
                         HavenError.CacheWriteFailed("Could not finalise staged content for $pieceCid"),
@@ -152,16 +160,28 @@ class PlaintextSpoolImpl @Inject constructor(
                 val isMissingFile = generateSequence<Throwable>(e) { it.cause }
                     .any { it is java.io.FileNotFoundException }
                 if (attempt == 0 && written == 0L && e !is HavenError && isMissingFile) {
+                    Timber.w(e, "PlaintextSpool: transient ENOENT on cid=%s, retrying", pieceCid)
                     runCatching { partial.delete() }
                     continue
                 }
+                Timber.w(
+                    e,
+                    "PlaintextSpool: write failed cid=%s attempt=%d written=%d target=%s",
+                    pieceCid,
+                    attempt,
+                    written,
+                    target.absolutePath,
+                )
                 // Never leave a partial behind: it would be indistinguishable from a short file and
                 // would fail later inside a decoder, where the cause is much harder to see.
                 runCatching { partial.delete() }
                 return@withContext Result.failure(
                     when (e) {
                         is HavenError -> e
-                        else -> HavenError.CacheWriteFailed(e.message ?: "Staging failed for $pieceCid", e)
+                        else -> HavenError.CacheWriteFailed(
+                            "${e.javaClass.simpleName}: ${e.message ?: "Staging failed for $pieceCid"}",
+                            e,
+                        )
                     },
                 )
             }

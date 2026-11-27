@@ -84,8 +84,13 @@ fun describeError(code: String, detail: String? = null, retryAtMillis: Long? = n
         "Free some space in Settings, under Storage, and try again.",
         code,
     )
-    "CACHE_WRITE_FAILED", "CACHE_READ_FAILED" -> UserMessage(
-        "The file could not be written to this device.",
+    "CACHE_WRITE_FAILED" -> UserMessage(
+        detail?.takeIf { it.isNotBlank() } ?: "The file could not be written to this device.",
+        "Check free storage space and try again.",
+        code,
+    )
+    "CACHE_READ_FAILED" -> UserMessage(
+        detail?.takeIf { it.isNotBlank() } ?: "The file could not be read from this device.",
         "Check free storage space and try again.",
         code,
     )
