@@ -79,22 +79,11 @@ fun TokenGate.gateKeyOrNull(): String? = havenChain()?.let { gateKey(it, tokenAd
 /**
  * Threshold in base units.
  *
- * A collection (ERC-721/1155) reports no decimals, so a threshold of 1 means one item and an
- * absent decimals read is read as a count. A token (ERC-20) quotes its threshold in whole tokens
- * while `balanceOf` answers in base units, so an absent decimals read must not be read the same
- * way: without it a gate requiring 25,000 tokens would be cleared by dust. For ERC-20 the
- * requirement is therefore scaled up out of reach (18 places, as in the dapp's `requiredUnits`)
- * rather than down, until a later check can read decimals.
+ * `gate_threshold` is already stored in base units (for example `1_000_000` for 1 USDC with 6
+ * decimals, or an item count for ERC-721/1155), matching `balanceOf(address)` directly.
  */
-internal fun requiredUnits(threshold: Double, decimals: Int?, standard: TokenStandard): BigInteger {
-    val whole = BigInteger.valueOf(threshold.toLong().coerceAtLeast(0))
-    return when {
-        standard != TokenStandard.ERC20 -> whole
-        decimals == null -> whole.multiply(BigInteger.TEN.pow(18))
-        decimals == 0 -> whole
-        else -> whole.multiply(BigInteger.TEN.pow(decimals))
-    }
-}
+internal fun requiredUnits(threshold: Double, decimals: Int?, standard: TokenStandard): BigInteger =
+    BigInteger.valueOf(threshold.toLong().coerceAtLeast(0))
 
 @Singleton
 internal class EvmGateAccessChecker @Inject constructor(
