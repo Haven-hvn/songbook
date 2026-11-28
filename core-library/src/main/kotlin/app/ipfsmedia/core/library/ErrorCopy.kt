@@ -70,7 +70,7 @@ fun describeError(code: String, detail: String? = null, retryAtMillis: Long? = n
         code,
     )
     "PLAYBACK_DECRYPT_FAILED" -> UserMessage(
-        "The file could not be unlocked.",
+        detail?.takeIf { it.isNotBlank() } ?: "The file could not be unlocked.",
         "Remove the download and fetch it again.",
         code,
     )

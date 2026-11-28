@@ -47,4 +47,11 @@ class ErrorCopyTest {
         assertEquals(readDetail, describeError("CACHE_READ_FAILED", readDetail).what)
         assertEquals("The file could not be read from this device.", describeError("CACHE_READ_FAILED").what)
     }
+
+    @Test
+    fun `playback decrypt error preserves diagnostic detail`() {
+        val detail = "The sealed key would not open (invalid ciphertext)."
+        assertEquals(detail, describeError("PLAYBACK_DECRYPT_FAILED", detail).what)
+        assertEquals("The file could not be unlocked.", describeError("PLAYBACK_DECRYPT_FAILED").what)
+    }
 }
