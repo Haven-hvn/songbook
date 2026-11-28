@@ -46,6 +46,25 @@ fun ShellDialogs(shell: ShellViewModel) {
             onConfirm = { name -> shell.confirmRenamePlaylist(dialog.id, name) },
             onDismiss = shell::dismissDialog,
         )
+        is ShellDialog.ApproveDownloadSignature -> AlertDialog(
+            onDismissRequest = shell::dismissDialog,
+            title = { Text("Sign to download") },
+            text = {
+                Text(
+                    "${dialog.title} is kept unlocked on this device, which needs one wallet signature to unlock it.",
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = { shell.confirmDownloadSignature(dialog.recordKey) }) {
+                    Text("Sign & download")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = shell::dismissDialog) {
+                    Text("Cancel")
+                }
+            },
+        )
     }
 }
 

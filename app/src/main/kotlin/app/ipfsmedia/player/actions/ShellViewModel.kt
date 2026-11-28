@@ -76,6 +76,9 @@ sealed interface ShellDialog {
     data class NamePlaylist(val suggested: String, val entries: List<EntrySnapshot>) : ShellDialog
 
     data class RenamePlaylist(val id: Long, val current: String) : ShellDialog
+
+    /** Ask before signing to unlock a gated download in "keep unlocked" mode. */
+    data class ApproveDownloadSignature(val recordKey: String, val title: String) : ShellDialog
 }
 
 /** Whether there is an identity to show the app for. */
@@ -181,7 +184,7 @@ class ShellViewModel @Inject constructor(
                     when (state) {
                         DownloadState.Running -> Unit
                         DownloadState.NeedsSignature -> {
-                            notice("$title is kept unlocked, which needs one signature. Play it once, then download it.")
+                            dialog = ShellDialog.ApproveDownloadSignature(recordKey, title)
                             downloads.dismiss(recordKey)
                         }
                         is DownloadState.Failed -> {
@@ -207,6 +210,11 @@ class ShellViewModel @Inject constructor(
 
     fun dismissDialog() {
         dialog = null
+    }
+
+    fun confirmDownloadSignature(recordKey: String) {
+        dialog = null
+        downloads.download(recordKey, approveSignature = true)
     }
 
     fun undo() {
